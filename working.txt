@@ -1,0 +1,311 @@
+let currentSessionId = null;
+let currentRow = 0;
+let currentCol = 0;
+
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("Document loaded");
+  startNewGame();
+  
+  const keys = document.querySelectorAll('.keyboard-row button');
+  keys.forEach(key => {
+    key.addEventListener('click', handleKeyClick);
+  });
+
+  document.addEventListener('keydown', handleKeyPress);
+});
+
+async function startNewGame() {
+  const response = await fetch("http://localhost:5000/new_session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    }
+  });
+  const data = await response.json();
+  currentSessionId = data.session_id;
+  console.log("New session started with ID:", currentSessionId, "and solution word:", data.solution_word);
+  initializeGameBoard();
+}
+
+function initializeGameBoard() {
+  const cells = document.querySelectorAll('td');
+  cells.forEach(cell => {
+    cell.textContent = '';
+    cell.className = '';
+  });
+  currentRow = 0;
+  currentCol = 0;
+}
+
+function handleKeyClick(event) {
+  const key = event.target.textContent;
+  console.log("Key clicked:", key);
+
+  if (key === 'Enter') {
+    submitGuess();
+  } else if (key === 'Delete') {
+    deleteLetter();
+  } else {
+    insertLetter(key);
+  }
+}
+
+function handleKeyPress(event) {
+  const key = event.key.toUpperCase();
+  console.log("Key pressed:", key);
+
+  if (key === 'ENTER') {
+    submitGuess();
+  } else if (key === 'BACKSPACE' || key === 'DELETE') {
+    deleteLetter();
+  } else if (key.match(/^[A-Z]$/) && key.length === 1) {
+    insertLetter(key);
+  }
+}
+
+function insertLetter(letter) {
+  if (currentCol < 5) {
+    const rows = document.querySelectorAll('tr');
+    const cell = rows[currentRow].children[currentCol];
+    cell.textContent = letter;
+    currentCol++;
+  }
+}
+
+function deleteLetter() {
+  if (currentCol > 0) {
+    currentCol--;
+    const rows = document.querySelectorAll('tr');
+    const cell = rows[currentRow].children[currentCol];
+    cell.textContent = '';
+  }
+}
+
+async function submitGuess() {
+  console.log("submitGuess function called");
+
+  if (currentCol !== 5) {
+    alert("Please enter a 5-letter word.");
+    return;
+  }
+
+  const rows = document.querySelectorAll('tr');
+  let guessedWord = '';
+  for (let i = 0; i < 5; i++) {
+    guessedWord += rows[currentRow].children[i].textContent;
+  }
+
+  guessedWord = guessedWord.toLowerCase(); // Ensure the guessed word is in lowercase
+  console.log("Guessed word before API call:", guessedWord);
+
+  const response = await fetch("http://localhost:5000/guess_word", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      session_id: currentSessionId,
+      guessed_word: guessedWord
+    })
+  });
+
+  const data = await response.json();
+  console.log("Guess response:", data);
+  console.log("Guessed word after API call:", guessedWord);
+
+  if (!data.solution_word) {
+    console.error("Solution word is null or undefined in the response");
+    return;
+  }
+
+  updateGameBoard(guessedWord, data.result, data.solution_word);
+
+  if (data.result === 'correct' || currentRow === 5) {
+    setTimeout(() => {
+      if (data.result === 'correct') {
+        alert("You Win!");
+      } else {
+        alert("Game Over! The correct word was " + data.solution_word);
+      }
+      startNewGame();
+    }, 500);
+  } else {
+    currentRow++;
+    currentCol = 0;
+    console.log("Moving to next row:", currentRow);
+  }
+}
+
+function updateGameBoard(guessedWord, result, solutionWord) {
+  if (!solutionWord) {
+    console.error("Solution word is null or undefined in updateGameBoard");
+    return;
+  }
+
+  const rows = document.querySelectorAll('tr');
+  const currentRowCells = rows[currentRow].children;
+
+  const solutionWordArray = solutionWord.split('');
+  const guessedWordArray = guessedWord.split('');
+
+  // Arrays to keep track of matched letters
+  const correctMatches = new Array(5).fill(false);
+  const solutionWordUsed = new Array(5).fill(false);
+
+  // First pass: Check for correct letters in the correct position (green)
+  for (let i = 0; i < 5; i++) {
+    if (guessedWordArray[i] === solutionWordArray[i]) {
+      correctMatches[i] = true;
+      solutionWordUsed[i] = true;
+      currentRowCells[i].classList.add('correct');
+    }
+  }
+
+  // Second pass: Check for correct letters in the wrong position (yellow)
+  for (let i = 0; i < 5; i++) {
+    if (!correctMatches[i]) {
+      for (let j = 0; j < 5; j++) {
+        if (!solutionWordUsed[j] && guessedWordArray[i] === solutionWordArray[j]) {
+          solutionWordUsed[j] = true;
+          currentRowCells[i].classList.add('incorrect');
+          break;
+        }
+      }
+    }
+  }
+
+  // Third pass: Mark remaining letters as invalid (grey)
+  for (let i = 0; i < 5; i++) {
+    if (!correctMatches[i] && !currentRowCells[i].classList.contains('incorrect')) {
+      currentRowCells[i].classList.add('invalid');
+    }
+  }
+
+  console.log(`Updated game board for row ${currentRow} with guessed word: ${guessedWord} and result: ${result}`);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from flask import Flask, request, jsonify
+from flask_restful import Api, Resource
+from flask_cors import CORS
+import mysql.connector
+import uuid
+
+app = Flask(__name__)
+CORS(app)
+api = Api(app)
+
+db_config = {
+    "host": "localhost",
+    "user": "root",
+    "password": "Lakers20!",  # Replace with your MySQL root password
+    "database": "wordle_db"
+}
+
+def get_db_connection():
+    return mysql.connector.connect(**db_config)
+
+class NewSession(Resource):
+    def post(self):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        session_id = str(uuid.uuid4())
+        cursor.execute("SELECT word FROM valid_words ORDER BY RAND() LIMIT 1")
+        solution_word = cursor.fetchone()
+        if solution_word:
+            solution_word = solution_word[0]
+            print(f"Selected solution word: {solution_word}")
+            cursor.execute("INSERT INTO game_sessions (session_id, solution_word) VALUES (%s, %s)", (session_id, solution_word))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return {"session_id": session_id, "solution_word": solution_word}, 201
+        else:
+            cursor.close()
+            conn.close()
+            return {"error": "No valid words found"}, 500
+
+class GuessWord(Resource):
+    def post(self):
+        data = request.get_json()
+        session_id = data.get("session_id")
+        guessed_word = data.get("guessed_word").lower()  # Ensure the guessed word is in lowercase
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT solution_word FROM game_sessions WHERE session_id = %s", (session_id,))
+        solution_word = cursor.fetchone()
+        if solution_word:
+            solution_word = solution_word[0].lower()  # Ensure the solution word is in lowercase
+            print(f"Solution word for session {session_id}: {solution_word}")
+            print(f"Guessed word: {guessed_word}")
+
+            cursor.execute("SELECT COUNT(*) FROM valid_words WHERE word = %s", (guessed_word,))
+            is_valid = cursor.fetchone()[0] > 0
+
+            if not is_valid:
+                result = "invalid"
+            elif guessed_word == solution_word:
+                result = "correct"
+            else:
+                result = "incorrect"
+
+            cursor.execute("INSERT INTO word_attempts (session_id, attempted_word) VALUES (%s, %s)", (session_id, guessed_word))
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            print(f"Result for guessed word: {result}")
+            return {"result": result, "solution_word": solution_word}, 200  # Always include solution_word in the response
+        else:
+            cursor.close()
+            conn.close()
+            print("Session not found or invalid.")
+            return {"error": "Session not found or invalid"}, 404
+
+api.add_resource(NewSession, "/new_session")
+api.add_resource(GuessWord, "/guess_word")
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
+

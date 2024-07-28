@@ -1,0 +1,72 @@
+body {
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f0f0f0;
+  margin: 0;
+}
+
+.container {
+  text-align: center;
+}
+
+.title {
+  font-size: 48px; /* Adjust font size as needed */
+  margin-bottom: 20px;
+}
+
+table {
+  margin: auto;
+  border-spacing: 5px;
+}
+
+td {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #ddd;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 20px;
+  font-weight: bold;
+  background-color: #fff;
+}
+
+.correct {
+  background-color: green;
+}
+
+.incorrect {
+  background-color: yellow;
+}
+
+.invalid {
+  background-color: gray;
+}
+
+.keyboard {
+  margin-top: 20px;
+}
+
+.keyboard-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 5px;
+}
+
+.keyboard-row button {
+  width: 40px;
+  height: 40px;
+  margin: 2px;
+  font-size: 16px;
+}
+
+.keyboard-row button.enter {
+  width: 80px; /* Adjust width as needed */
+}
+
+.keyboard-row button.delete {
+  width: 80px; /* Adjust width as needed */
+}
+
